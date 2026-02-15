@@ -48,6 +48,9 @@ class TrainConfig:
     log_every: int = 100
     eval_every: int = 50
     
+    # Reproducibility
+    seed: int = 42
+
     # Device
     device: str = "auto"     # "auto", "mps", "cuda", "cpu"
 
@@ -113,7 +116,10 @@ def train(
     """
     if config is None:
         config = TrainConfig()
-    
+
+    torch.manual_seed(config.seed)
+    np.random.seed(config.seed)
+
     device = get_device(config)
     
     if verbose:
