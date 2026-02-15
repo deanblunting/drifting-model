@@ -113,7 +113,6 @@ def main():
         n_pos=128, n_neg=128,
         lr=2e-4, n_epochs=2000,
         log_every=400, eval_every=100,
-        use_transformer=True,
     )
     
     state = ghz_state(4)
