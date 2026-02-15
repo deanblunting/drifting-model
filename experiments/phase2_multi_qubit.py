@@ -53,9 +53,9 @@ def run_experiment(state, config, label, out_dir):
         gen_probs = result['final_metrics']['gen_probs']
         rho_recon = reconstruct_density_matrix(gen_probs, state.n_qubits, bases)
         
-        plot_density_matrix(state.rho, f"True rho — {label}",
+        plot_density_matrix(state.rho, f"True rho: {label}",
                            f"{out_dir}/rho_true_{safe}.png")
-        plot_density_matrix(rho_recon, f"Reconstructed rho — {label}",
+        plot_density_matrix(rho_recon, f"Reconstructed rho: {label}",
                            f"{out_dir}/rho_recon_{safe}.png")
         
         fid = state_fidelity(state.rho, rho_recon)
