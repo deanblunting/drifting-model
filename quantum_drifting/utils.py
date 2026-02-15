@@ -16,7 +16,7 @@ def plot_training(result: Dict, save_path: str):
     
     fig, axes = plt.subplots(2, 2, figsize=(12, 9))
     fig.suptitle(
-        f'Quantum Tomography via Drifting — {state.name}\n'
+        f'Quantum Tomography via Drifting: {state.name}\n'
         f'{state.n_qubits} qubits, {len(result["bases"])} bases',
         fontsize=13, fontweight='bold'
     )
@@ -70,7 +70,7 @@ def plot_probability_comparison(result: Dict, save_path: str, max_bases: int = 9
     if n_bases_show == 1:
         axes = [axes]
     
-    fig.suptitle(f'Probability Distributions — {state.name}', fontsize=12, fontweight='bold')
+    fig.suptitle(f'Probability Distributions: {state.name}', fontsize=12, fontweight='bold')
     
     for idx, basis in enumerate(bases):
         ax = axes[idx]
