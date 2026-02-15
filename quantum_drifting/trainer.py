@@ -28,8 +28,7 @@ class TrainConfig:
     # Generator
     noise_dim: int = 32
     hidden_dim: int = 128
-    use_transformer: bool = False
-    
+    n_layers: int = 4
     # Drifting
     n_pos: int = 64          # positive samples per basis per step
     n_neg: int = 64          # generated (negative) samples per basis per step
@@ -132,7 +131,7 @@ def train(
         n_bases=len(bases),
         noise_dim=config.noise_dim,
         hidden_dim=config.hidden_dim,
-        use_transformer=config.use_transformer,
+        n_layers=config.n_layers,
     ).to(device)
     
     n_params = sum(p.numel() for p in generator.parameters())
