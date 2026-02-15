@@ -1,5 +1,10 @@
 """
-4-qubit tomography experiment using the SimpleGenerator (MLP) architecture.
+4-qubit tomography experiment using the AutoregressiveGenerator architecture.
+
+Improvements over the flat MLP:
+- Autoregressive factorization: P(k1,...,kn) = P(k1)*P(k2|k1)*... avoids 2^n output
+- Per-qubit basis encoding: X/Y/Z embeddings generalize across bases sharing Pauli factors
+- Basis sampling: random subset of bases per epoch for efficient training over 3^4=81 bases
 """
 
 import sys
@@ -22,11 +27,13 @@ def main():
     print(f"Bases: {len(bases)}/{3**state.n_qubits}")
 
     config = TrainConfig(
-        noise_dim=64, hidden_dim=512,
+        autoregressive=True,
+        noise_dim=64, hidden_dim=256,
         n_layers=6,
         n_pos=256, n_neg=256,
+        bases_per_epoch=27,  # sample 27 of 81 bases per epoch
         lr=1e-4, n_epochs=2000,
-        log_every=500, eval_every=100,
+        log_every=400, eval_every=100,
     )
 
     result = train(state, bases, config)
