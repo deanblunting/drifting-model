@@ -34,28 +34,64 @@ def pauli_tensor(label: str) -> np.ndarray:
     return result
 
 
-def expectation_from_probs(probs: np.ndarray, basis_string: str, n_qubits: int) -> float:
+def marginal_expectation(probs: np.ndarray, n_qubits: int, active_qubits: List[int]) -> float:
     """
-    Compute the expectation value <P> from measurement probabilities,
-    where P is the tensor product Pauli operator for the given basis.
-    
-    For a Pauli measurement, each outcome has eigenvalue +1 or -1.
-    The eigenvalue of outcome bitstring b = b_1 b_2 ... b_n is:
-      lambda(b) = product_i (-1)^{b_i}
-    
-    So <P> = sum_b P(b) * lambda(b)
+    Compute the expectation value of a Pauli sub-operator acting on active_qubits,
+    by marginalizing over the remaining qubits.
+
+    For active qubits, each outcome contributes eigenvalue (-1)^{b_i}.
+    For inactive qubits (identity), we sum over both outcomes (marginalize).
+
+    Args:
+        probs: [2^n] probability array from a full n-qubit measurement
+        n_qubits: number of qubits
+        active_qubits: list of qubit indices where a non-identity Pauli acts
+
+    Returns:
+        expectation value of the marginal operator
     """
-    n = n_qubits
-    dim = 2 ** n
+    dim = 2 ** n_qubits
     expectation = 0.0
     for outcome_idx in range(dim):
-        # Decode outcome index to individual qubit outcomes
-        bits = [(outcome_idx >> (n - 1 - q)) & 1 for q in range(n)]
         eigenvalue = 1.0
-        for b in bits:
-            eigenvalue *= (-1) ** b
+        for q in active_qubits:
+            bit = (outcome_idx >> (n_qubits - 1 - q)) & 1
+            eigenvalue *= (-1) ** bit
         expectation += probs[outcome_idx] * eigenvalue
     return expectation
+
+
+def extract_all_expectations(
+    probs: np.ndarray,
+    basis_string: str,
+    n_qubits: int,
+) -> Dict[str, float]:
+    """
+    Extract all marginal Pauli expectations from a single basis measurement.
+
+    A measurement in basis "XYZ" yields expectations for all 2^n - 1 nontrivial
+    sub-operators: XYZ, XYI, XIZ, IYZ, XII, IYI, IIZ. Each is obtained by
+    marginalizing over the qubits where we place I.
+
+    Args:
+        probs: [2^n] probability array
+        basis_string: measurement basis (e.g., "XYZ")
+        n_qubits: number of qubits
+
+    Returns:
+        dict mapping Pauli label (e.g., "XIZ") -> expectation value
+    """
+    expectations = {}
+    # Iterate over all non-empty subsets of qubit positions
+    for mask in range(1, 2 ** n_qubits):
+        active_qubits = [q for q in range(n_qubits) if (mask >> (n_qubits - 1 - q)) & 1]
+        label = ''.join(
+            basis_string[q] if (mask >> (n_qubits - 1 - q)) & 1 else 'I'
+            for q in range(n_qubits)
+        )
+        exp_val = marginal_expectation(probs, n_qubits, active_qubits)
+        expectations[label] = exp_val
+    return expectations
 
 
 def reconstruct_density_matrix(
@@ -65,42 +101,48 @@ def reconstruct_density_matrix(
 ) -> np.ndarray:
     """
     Reconstruct the density matrix via linear inversion from Pauli expectations.
-    
+
     The density matrix can be expanded as:
       rho = (1/2^n) * sum_{P} <P> * P
-    
+
     where P ranges over all n-qubit Pauli operators (including identity).
-    
-    For each measured basis (e.g., "XY"), we get the expectation of the
-    corresponding tensor product Pauli operator (sigma_X x sigma_Y).
-    
+
+    For each measured basis (e.g., "XYZ"), we extract all 2^n - 1 marginal
+    Pauli expectations (e.g., XYZ, XYI, XIZ, IYZ, XII, IYI, IIZ) by
+    summing over qubits where the identity acts.
+
+    When multiple bases provide the same Pauli expectation, we average them.
+
     Args:
         gen_probs: dict mapping basis string -> probability array
         n_qubits: number of qubits
         bases: list of measurement basis strings
-    
+
     Returns:
         rho: reconstructed density matrix (may not be positive semidefinite)
     """
     dim = 2 ** n_qubits
-    rho = np.zeros((dim, dim), dtype=complex)
-    
-    # Identity contribution
-    rho += np.eye(dim, dtype=complex) / dim
-    
-    # Pauli contributions from measured bases
-    measured_paulis = set()
+
+    # Collect all Pauli expectations, averaging when multiple bases give the same one
+    pauli_expectations: Dict[str, List[float]] = {}
     for basis in bases:
         if basis in gen_probs:
             probs = gen_probs[basis]
-            exp_val = expectation_from_probs(probs, basis, n_qubits)
-            P = pauli_tensor(basis)
-            
-            # Check this isn't the identity (all same basis = not identity)
-            pauli_label = basis  # e.g., "XZ"
-            if pauli_label not in measured_paulis:
-                rho += exp_val * P / dim
-                measured_paulis.add(pauli_label)
+            marginals = extract_all_expectations(probs, basis, n_qubits)
+            for label, exp_val in marginals.items():
+                if label not in pauli_expectations:
+                    pauli_expectations[label] = []
+                pauli_expectations[label].append(exp_val)
+
+    # Build rho
+    rho = np.eye(dim, dtype=complex) / dim  # identity contribution
+
+    for label, values in pauli_expectations.items():
+        if label == 'I' * n_qubits:
+            continue
+        avg_exp = np.mean(values)
+        P = pauli_tensor(label)
+        rho += avg_exp * P / dim
     
     # Project to physical density matrix (positive semidefinite, trace 1)
     rho = project_to_physical(rho)
