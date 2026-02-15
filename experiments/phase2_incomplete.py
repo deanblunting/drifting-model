@@ -22,7 +22,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import numpy as np
 from quantum_drifting.states import (
     bell_state, ghz_state, w_state, random_haar_state,
-    select_random_bases, select_local_bases,
+    select_random_bases,
 )
 from quantum_drifting.trainer import train, TrainConfig
 from quantum_drifting.tomography import reconstruct_density_matrix, state_fidelity
@@ -42,28 +42,17 @@ def run_incomplete_sweep(state, config, fractions, out_dir, label):
         n_bases = max(1, int(frac * n_total))
         if n_bases >= n_total:
             bases = all_bases
-            tag = f"100%({n_total})"
+            tag = f"{n_total} bases"
         else:
             bases = select_random_bases(state.n_qubits, n_bases, seed=42)
-            tag = f"{int(frac*100)}%({n_bases})"
+            tag = f"{n_bases} bases"
         
         print(f"\n--- {label} with {tag} bases ---")
         result = train(state, bases, config, verbose=True)
         results[tag] = result
         
-        safe = f"{label}_{tag}".replace(' ', '_').replace('|', '').replace('>', '').replace('%', 'pct').replace('(', '_').replace(')', '')
+        safe = f"{label}_{n_bases}".replace(' ', '_').replace('|', '').replace('>', '')
         plot_training(result, f"{out_dir}/train_{safe}.png")
-    
-    # Also test with only local bases (3n instead of 3^n)
-    local_bases = select_local_bases(state.n_qubits)
-    n_local = len(local_bases)
-    print(f"\n--- {label} with LOCAL bases ({n_local}) ---")
-    result = train(state, local_bases, config, verbose=True)
-    tag = f"local({n_local})"
-    results[tag] = result
-    
-    safe_label = label.replace(' ', '_').replace('|', '').replace('>', '')
-    plot_training(result, f"{out_dir}/train_{safe_label}_local.png")
     
     return results
 
